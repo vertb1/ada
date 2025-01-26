@@ -4,6 +4,9 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+-- Central ESP object storage
+local espObjects = {}
+
 -- Utility functions
 local Utility = {
     getCharacter = function(player)
@@ -41,7 +44,6 @@ local Settings = {
     textSize = 13
 }
 
-local espObjects = {} -- Store ESP objects by player userId
 local EntityESP = {}
 EntityESP.__index = EntityESP
 
@@ -90,8 +92,13 @@ local TRIANGLE_ANGLE = mathRad(45)
 EntityESP.id = 0
 
 function EntityESP.new(player)
-    EntityESP.id += 1
+    if not player then return end
     
+    if espObjects[player.UserId] then
+        return espObjects[player.UserId]
+    end
+    
+    EntityESP.id = EntityESP.id + 1
     local self = setmetatable({}, EntityESP)
     
     self._id = EntityESP.id
@@ -137,7 +144,6 @@ function EntityESP.new(player)
     self._labelObject = self._label
     
     espObjects[player.UserId] = self
-    player._espObject = self
     
     return self
 end
@@ -349,9 +355,11 @@ local function updateESP()
     healthBarValueOffsetBottomLeft = EntityESP:ConvertVector(3.45, 4.45, 0)
 end
 
--- Initialize
 do
+    -- Initialize ESP
     updateESP()
+    
+    -- Bind update loop
     RunService:BindToRenderStep(id, Enum.RenderPriority.Camera.Value, function()
         updateESP()
         for _, player in ipairs(Players:GetPlayers()) do
@@ -364,14 +372,14 @@ do
         end
     end)
 
-    -- Initialize ESP for all players
+    -- Setup for existing players
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             EntityESP.new(player)
         end
     end
 
-    -- Handle new players joining
+    -- Handle new players
     Players.PlayerAdded:Connect(function(player)
         if player ~= LocalPlayer then
             EntityESP.new(player)
