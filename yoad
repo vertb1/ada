@@ -4,10 +4,10 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Central ESP object storage
+
 local espObjects = {}
 
--- Utility functions
+
 local Utility = {
     getCharacter = function(player)
         local character = player.Character
@@ -28,7 +28,7 @@ local Utility = {
     end
 }
 
--- Settings
+
 local Settings = {
     showTeam = false,
     allyColor = Color3.fromRGB(0, 255, 0),
@@ -356,10 +356,9 @@ local function updateESP()
 end
 
 do
-    -- Initialize ESP
+    print("Starting ESP initialization")
     updateESP()
     
-    -- Bind update loop
     RunService:BindToRenderStep(id, Enum.RenderPriority.Camera.Value, function()
         updateESP()
         for _, player in ipairs(Players:GetPlayers()) do
@@ -367,31 +366,34 @@ do
                 local esp = espObjects[player.UserId]
                 if esp then
                     esp:Update()
+                    if not esp._label.Visible then
+                        print(string.format("ESP hidden for %s - Distance: %d", player.Name, (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Magnitude or 0)))
+                    end
                 end
             end
         end
     end)
 
-    -- Setup for existing players
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            EntityESP.new(player)
+            local esp = EntityESP.new(player)
+            print("Created ESP for: " .. player.Name)
         end
     end
 
-    -- Handle new players
     Players.PlayerAdded:Connect(function(player)
         if player ~= LocalPlayer then
-            EntityESP.new(player)
+            local esp = EntityESP.new(player)
+            print("New player ESP created: " .. player.Name)
         end
     end)
 
-    -- Handle players leaving
     Players.PlayerRemoving:Connect(function(player)
         local esp = espObjects[player.UserId]
         if esp then
             esp:Destroy()
             espObjects[player.UserId] = nil
+            print("Removed ESP for: " .. player.Name)
         end
     end)
 end
