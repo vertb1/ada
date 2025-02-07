@@ -227,6 +227,203 @@ function Library:AddSection(name)
         return toggle
     end
 
+    -- Add Slider function to the section
+    function section:AddSlider(options)
+        options = options or {}
+        local slider = {
+            Name = options.Name or "Slider",
+            Min = options.Min or 0,
+            Max = options.Max or 100,
+            Value = options.Default or 50,
+            Flag = options.Flag or options.Name,
+            Callback = options.Callback or function() end
+        }
+
+        -- Create slider holder
+        local holder = Instance.new("Frame")
+        holder.Name = "SliderHolder"
+        holder.Size = UDim2.new(1, 0, 0, 35)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        -- Slider label
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(1, -10, 0, 20)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = slider.Name
+        label.TextColor3 = Library.Settings.Theme.Text
+        label.Font = Library.Settings.Font
+        label.TextSize = Library.Settings.FontSize
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = holder
+
+        -- Slider value display
+        local value = Instance.new("TextLabel")
+        value.Name = "Value"
+        value.Size = UDim2.new(0, 30, 0, 20)
+        value.Position = UDim2.new(1, -35, 0, 0)
+        value.BackgroundTransparency = 1
+        value.Text = tostring(slider.Value)
+        value.TextColor3 = Library.Settings.Theme.Text
+        value.Font = Library.Settings.Font
+        value.TextSize = Library.Settings.FontSize
+        value.Parent = holder
+
+        -- Slider bar background
+        local sliderBg = Instance.new("Frame")
+        sliderBg.Name = "SliderBg"
+        sliderBg.Size = UDim2.new(1, -10, 0, 4)
+        sliderBg.Position = UDim2.new(0, 5, 0, 25)
+        sliderBg.BackgroundColor3 = Library.Settings.Theme.Section
+        sliderBg.BorderSizePixel = 0
+        sliderBg.Parent = holder
+
+        -- Slider fill
+        local fill = Instance.new("Frame")
+        fill.Name = "Fill"
+        fill.Size = UDim2.new((slider.Value - slider.Min)/(slider.Max - slider.Min), 0, 1, 0)
+        fill.BackgroundColor3 = Library.Settings.Theme.Accent
+        fill.BorderSizePixel = 0
+        fill.Parent = sliderBg
+
+        -- Slider functionality
+        local dragging = false
+
+        local function updateSlider(input)
+            local pos = UDim2.new(math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1), 0, 1, 0)
+            fill.Size = pos
+            
+            local newValue = math.floor(slider.Min + ((slider.Max - slider.Min) * pos.X.Scale))
+            if newValue ~= slider.Value then
+                slider.Value = newValue
+                value.Text = tostring(newValue)
+                Library.Flags[slider.Flag] = newValue
+                slider.Callback(newValue)
+            end
+        end
+
+        sliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                updateSlider(input)
+            end
+        end)
+
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateSlider(input)
+            end
+        end)
+
+        game:GetService("UserInputService").InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+
+        return slider
+    end
+
+    -- Add Dropdown function to the section
+    function section:AddDropdown(options)
+        options = options or {}
+        local dropdown = {
+            Name = options.Name or "Dropdown",
+            Options = options.Options or {},
+            Default = options.Default or nil,
+            Flag = options.Flag or options.Name,
+            Callback = options.Callback or function() end,
+            Multi = options.Multi or false,
+            Value = options.Default or (options.Multi and {} or nil)
+        }
+
+        -- Create dropdown holder
+        local holder = Instance.new("Frame")
+        holder.Name = "DropdownHolder"
+        holder.Size = UDim2.new(1, 0, 0, 30)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        -- Dropdown button
+        local button = Instance.new("TextButton")
+        button.Name = "Button"
+        button.Size = UDim2.new(1, -10, 0, 25)
+        button.Position = UDim2.new(0, 5, 0, 0)
+        button.BackgroundColor3 = Library.Settings.Theme.Section
+        button.BorderColor3 = Library.Settings.Theme.Accent
+        button.Text = dropdown.Name
+        button.TextColor3 = Library.Settings.Theme.Text
+        button.Font = Library.Settings.Font
+        button.TextSize = Library.Settings.FontSize
+        button.Parent = holder
+
+        -- Dropdown list
+        local list = Instance.new("Frame")
+        list.Name = "List"
+        list.Size = UDim2.new(1, -10, 0, 0)
+        list.Position = UDim2.new(0, 5, 0, 30)
+        list.BackgroundColor3 = Library.Settings.Theme.Section
+        list.BorderColor3 = Library.Settings.Theme.Accent
+        list.Visible = false
+        list.Parent = holder
+
+        local layout = Instance.new("UIListLayout")
+        layout.Parent = list
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0, 2)
+
+        -- Create option buttons
+        local function createOption(name)
+            local option = Instance.new("TextButton")
+            option.Size = UDim2.new(1, 0, 0, 20)
+            option.BackgroundTransparency = 1
+            option.Text = name
+            option.TextColor3 = Library.Settings.Theme.Text
+            option.Font = Library.Settings.Font
+            option.TextSize = Library.Settings.FontSize
+            option.Parent = list
+
+            option.MouseButton1Click:Connect(function()
+                if dropdown.Multi then
+                    if table.find(dropdown.Value, name) then
+                        table.remove(dropdown.Value, table.find(dropdown.Value, name))
+                    else
+                        table.insert(dropdown.Value, name)
+                    end
+                    button.Text = #dropdown.Value > 0 and table.concat(dropdown.Value, ", ") or dropdown.Name
+                else
+                    dropdown.Value = name
+                    button.Text = name
+                    list.Visible = false
+                end
+                Library.Flags[dropdown.Flag] = dropdown.Value
+                dropdown.Callback(dropdown.Value)
+            end)
+        end
+
+        -- Create all options
+        for _, option in ipairs(dropdown.Options) do
+            createOption(option)
+        end
+
+        -- Update list size
+        list.Size = UDim2.new(1, -10, 0, layout.AbsoluteContentSize.Y)
+
+        -- Toggle dropdown
+        button.MouseButton1Click:Connect(function()
+            list.Visible = not list.Visible
+            if list.Visible then
+                holder.Size = UDim2.new(1, 0, 0, 35 + layout.AbsoluteContentSize.Y)
+            else
+                holder.Size = UDim2.new(1, 0, 0, 30)
+            end
+        end)
+
+        return dropdown
+    end
+
     return section
 end
 
