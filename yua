@@ -424,6 +424,168 @@ function Library:AddSection(name)
         return dropdown
     end
 
+    -- Add Colorpicker function to the section
+    function section:AddColorpicker(options)
+        options = options or {}
+        local colorpicker = {
+            Name = options.Name or "Colorpicker",
+            Default = options.Default or Color3.fromRGB(255, 255, 255),
+            Flag = options.Flag or options.Name,
+            Callback = options.Callback or function() end
+        }
+
+        -- Create colorpicker holder
+        local holder = Instance.new("Frame")
+        holder.Name = "ColorpickerHolder"
+        holder.Size = UDim2.new(1, 0, 0, 30)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(1, -60, 1, 0)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = colorpicker.Name
+        label.TextColor3 = Library.Settings.Theme.Text
+        label.Font = Library.Settings.Font
+        label.TextSize = Library.Settings.FontSize
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = holder
+
+        -- Color display
+        local display = Instance.new("Frame")
+        display.Name = "Display"
+        display.Size = UDim2.new(0, 30, 0, 15)
+        display.Position = UDim2.new(1, -35, 0, 7)
+        display.BackgroundColor3 = colorpicker.Default
+        display.BorderColor3 = Library.Settings.Theme.Accent
+        display.Parent = holder
+
+        -- Color picker window
+        local window = Instance.new("Frame")
+        window.Name = "Window"
+        window.Size = UDim2.new(0, 200, 0, 220)
+        window.Position = UDim2.new(1, 10, 0, 0)
+        window.BackgroundColor3 = Library.Settings.Theme.Section
+        window.BorderColor3 = Library.Settings.Theme.Accent
+        window.Visible = false
+        window.Parent = holder
+        window.ZIndex = 100
+
+        -- Color picker functionality
+        local colorH, colorS, colorV = colorpicker.Default:ToHSV()
+        local dragging = false
+        local hueChanging = false
+
+        -- Color space
+        local colorSpace = Instance.new("ImageButton")
+        colorSpace.Name = "ColorSpace"
+        colorSpace.Size = UDim2.new(1, -10, 0, 150)
+        colorSpace.Position = UDim2.new(0, 5, 0, 5)
+        colorSpace.BorderColor3 = Library.Settings.Theme.Accent
+        colorSpace.Image = "rbxassetid://4155801252"
+        colorSpace.Parent = window
+        colorSpace.ZIndex = 101
+
+        -- Hue slider
+        local hueSlider = Instance.new("Frame")
+        hueSlider.Name = "HueSlider"
+        hueSlider.Size = UDim2.new(1, -10, 0, 20)
+        hueSlider.Position = UDim2.new(0, 5, 0, 160)
+        hueSlider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        hueSlider.BorderColor3 = Library.Settings.Theme.Accent
+        hueSlider.Parent = window
+        hueSlider.ZIndex = 101
+
+        local hueGradient = Instance.new("UIGradient")
+        hueGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+        })
+        hueGradient.Parent = hueSlider
+
+        -- Update color function
+        local function updateColor()
+            local color = Color3.fromHSV(colorH, colorS, colorV)
+            display.BackgroundColor3 = color
+            Library.Flags[colorpicker.Flag] = color
+            colorpicker.Callback(color)
+        end
+
+        -- Color space input
+        colorSpace.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                local function update()
+                    local offset = Vector2.new(
+                        math.clamp(game:GetService("UserInputService"):GetMouseLocation().X - colorSpace.AbsolutePosition.X, 0, colorSpace.AbsoluteSize.X),
+                        math.clamp(game:GetService("UserInputService"):GetMouseLocation().Y - colorSpace.AbsolutePosition.Y, 0, colorSpace.AbsoluteSize.Y)
+                    )
+                    colorS = offset.X / colorSpace.AbsoluteSize.X
+                    colorV = 1 - (offset.Y / colorSpace.AbsoluteSize.Y)
+                    updateColor()
+                end
+                update()
+                local connection
+                connection = game:GetService("RunService").RenderStepped:Connect(function()
+                    if dragging then
+                        update()
+                    else
+                        connection:Disconnect()
+                    end
+                end)
+            end
+        end)
+
+        -- Hue slider input
+        hueSlider.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                hueChanging = true
+                local function update()
+                    local offset = math.clamp(game:GetService("UserInputService"):GetMouseLocation().X - hueSlider.AbsolutePosition.X, 0, hueSlider.AbsoluteSize.X)
+                    colorH = offset / hueSlider.AbsoluteSize.X
+                    updateColor()
+                end
+                update()
+                local connection
+                connection = game:GetService("RunService").RenderStepped:Connect(function()
+                    if hueChanging then
+                        update()
+                    else
+                        connection:Disconnect()
+                    end
+                end)
+            end
+        end)
+
+        -- Input ended
+        game:GetService("UserInputService").InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                hueChanging = false
+            end
+        end)
+
+        -- Toggle window
+        display.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                window.Visible = not window.Visible
+            end
+        end)
+
+        -- Initial color
+        updateColor()
+
+        return colorpicker
+    end
+
     return section
 end
 
