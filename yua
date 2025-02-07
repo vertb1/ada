@@ -741,11 +741,153 @@ function Library:AddSection(name)
     return section
 end
 
--- Would you like me to continue with implementing more features like:
--- 1. Sections
--- 2. Toggles
--- 3. Sliders
--- 4. Dropdowns
--- 5. Colorpickers
+-- Utility functions for the library
+function Library:SaveConfig(name)
+    local config = {}
+    for flag, value in pairs(self.Flags) do
+        -- Handle different value types
+        if typeof(value) == "Color3" then
+            config[flag] = {
+                Type = "Color3",
+                Value = {value.R, value.G, value.B}
+            }
+        elseif typeof(value) == "EnumItem" then
+            config[flag] = {
+                Type = "Enum",
+                Value = tostring(value)
+            }
+        else
+            config[flag] = {
+                Type = typeof(value),
+                Value = value
+            }
+        end
+    end
+    
+    -- Save to file
+    local json = game:GetService("HttpService"):JSONEncode(config)
+    writefile("configs/" .. name .. ".json", json)
+end
+
+function Library:LoadConfig(name)
+    if not isfile("configs/" .. name .. ".json") then
+        return
+    end
+    
+    local config = game:GetService("HttpService"):JSONDecode(readfile("configs/" .. name .. ".json"))
+    for flag, data in pairs(config) do
+        if self.Flags[flag] then
+            local value = data.Value
+            if data.Type == "Color3" then
+                value = Color3.new(value[1], value[2], value[3])
+            elseif data.Type == "Enum" then
+                value = Enum.KeyCode[value]
+            end
+            
+            -- Update the UI element
+            if self.Objects[flag] and self.Objects[flag].Set then
+                self.Objects[flag]:Set(value)
+            else
+                self.Flags[flag] = value
+            end
+        end
+    end
+end
+
+-- Add notification system
+function Library:Notify(options)
+    options = options or {}
+    local notification = {
+        Title = options.Title or "Notification",
+        Text = options.Text or "",
+        Duration = options.Duration or 3
+    }
+
+    -- Create notification GUI
+    local notif = Instance.new("Frame")
+    notif.Name = "Notification"
+    notif.Size = UDim2.new(0, 200, 0, 60)
+    notif.Position = UDim2.new(1, -220, 1, -80)
+    notif.BackgroundColor3 = Library.Settings.Theme.Section
+    notif.BorderColor3 = Library.Settings.Theme.Accent
+    notif.Parent = self.GUI
+
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -10, 0, 25)
+    title.Position = UDim2.new(0, 5, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = notification.Title
+    title.TextColor3 = Library.Settings.Theme.Text
+    title.Font = Library.Settings.Font
+    title.TextSize = Library.Settings.FontSize
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = notif
+
+    -- Text
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, -10, 0, 25)
+    text.Position = UDim2.new(0, 5, 0, 30)
+    text.BackgroundTransparency = 1
+    text.Text = notification.Text
+    text.TextColor3 = Library.Settings.Theme.DarkText
+    text.Font = Library.Settings.Font
+    text.TextSize = Library.Settings.FontSize - 2
+    text.TextXAlignment = Enum.TextXAlignment.Left
+    text.Parent = notif
+
+    -- Animation
+    notif.Position = UDim2.new(1, 0, 1, -80)
+    local tween = game:GetService("TweenService"):Create(notif, 
+        TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {Position = UDim2.new(1, -220, 1, -80)}
+    )
+    tween:Play()
+
+    -- Auto remove
+    task.delay(notification.Duration, function()
+        local fadeOut = game:GetService("TweenService"):Create(notif,
+            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Position = UDim2.new(1, 0, 1, -80)}
+        )
+        fadeOut:Play()
+        fadeOut.Completed:Connect(function()
+            notif:Destroy()
+        end)
+    end)
+end
+
+-- Add watermark
+function Library:SetWatermark(text)
+    if not self.Watermark then
+        self.Watermark = Instance.new("TextLabel")
+        self.Watermark.Size = UDim2.new(0, 200, 0, 20)
+        self.Watermark.Position = UDim2.new(0, 10, 0, 10)
+        self.Watermark.BackgroundColor3 = Library.Settings.Theme.Section
+        self.Watermark.BorderColor3 = Library.Settings.Theme.Accent
+        self.Watermark.Font = Library.Settings.Font
+        self.Watermark.TextSize = Library.Settings.FontSize
+        self.Watermark.TextColor3 = Library.Settings.Theme.Text
+        self.Watermark.Parent = self.GUI
+    end
+    
+    self.Watermark.Text = text
+end
+
+-- Add keybind to toggle UI
+function Library:ToggleUI(key)
+    local toggled = true
+    game:GetService("UserInputService").InputBegan:Connect(function(input)
+        if input.KeyCode == key then
+            toggled = not toggled
+            self.GUI.Enabled = toggled
+        end
+    end)
+end
+
+-- Initialize folders
+if not isfolder("configs") then
+    makefolder("configs")
+end
 
 return Library
