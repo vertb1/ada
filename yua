@@ -586,6 +586,158 @@ function Library:AddSection(name)
         return colorpicker
     end
 
+    -- Add Keybind function to the section
+    function section:AddKeybind(options)
+        options = options or {}
+        local keybind = {
+            Name = options.Name or "Keybind",
+            Default = options.Default or Enum.KeyCode.Unknown,
+            Flag = options.Flag or options.Name,
+            Mode = options.Mode or "Toggle", -- "Toggle", "Hold", or "Always"
+            Callback = options.Callback or function() end,
+            State = false,
+            Binding = false
+        }
+
+        -- Create keybind holder
+        local holder = Instance.new("Frame")
+        holder.Name = "KeybindHolder"
+        holder.Size = UDim2.new(1, 0, 0, 30)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(1, -70, 1, 0)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = keybind.Name
+        label.TextColor3 = Library.Settings.Theme.Text
+        label.Font = Library.Settings.Font
+        label.TextSize = Library.Settings.FontSize
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = holder
+
+        -- Keybind button
+        local button = Instance.new("TextButton")
+        button.Name = "Button"
+        button.Size = UDim2.new(0, 60, 0, 20)
+        button.Position = UDim2.new(1, -65, 0, 5)
+        button.BackgroundColor3 = Library.Settings.Theme.Section
+        button.BorderColor3 = Library.Settings.Theme.Accent
+        button.Text = keybind.Default and keybind.Default.Name or "None"
+        button.TextColor3 = Library.Settings.Theme.Text
+        button.Font = Library.Settings.Font
+        button.TextSize = Library.Settings.FontSize
+        button.Parent = holder
+
+        -- Keybind functionality
+        local function updateValue(key)
+            keybind.Value = key
+            button.Text = key and key.Name or "None"
+            Library.Flags[keybind.Flag] = key
+        end
+
+        local function handleInput()
+            if keybind.Binding then return end
+            keybind.Binding = true
+            button.Text = "..."
+
+            local connection
+            connection = game:GetService("UserInputService").InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    updateValue(input.KeyCode)
+                    keybind.Binding = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+
+        -- Input handling
+        button.MouseButton1Click:Connect(handleInput)
+
+        game:GetService("UserInputService").InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == keybind.Value then
+                if keybind.Mode == "Toggle" then
+                    keybind.State = not keybind.State
+                    keybind.Callback(keybind.State)
+                elseif keybind.Mode == "Hold" then
+                    keybind.State = true
+                    keybind.Callback(true)
+                end
+            end
+        end)
+
+        game:GetService("UserInputService").InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == keybind.Value then
+                if keybind.Mode == "Hold" then
+                    keybind.State = false
+                    keybind.Callback(false)
+                end
+            end
+        end)
+
+        -- Initialize
+        updateValue(keybind.Default)
+
+        return keybind
+    end
+
+    -- Add Textbox function to the section
+    function section:AddTextbox(options)
+        options = options or {}
+        local textbox = {
+            Name = options.Name or "Textbox",
+            Default = options.Default or "",
+            Flag = options.Flag or options.Name,
+            Callback = options.Callback or function() end,
+            PlaceholderText = options.PlaceholderText or "Enter text..."
+        }
+
+        -- Create textbox holder
+        local holder = Instance.new("Frame")
+        holder.Name = "TextboxHolder"
+        holder.Size = UDim2.new(1, 0, 0, 30)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(1, -110, 1, 0)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = textbox.Name
+        label.TextColor3 = Library.Settings.Theme.Text
+        label.Font = Library.Settings.Font
+        label.TextSize = Library.Settings.FontSize
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = holder
+
+        -- Textbox
+        local box = Instance.new("TextBox")
+        box.Name = "Box"
+        box.Size = UDim2.new(0, 100, 0, 20)
+        box.Position = UDim2.new(1, -105, 0, 5)
+        box.BackgroundColor3 = Library.Settings.Theme.Section
+        box.BorderColor3 = Library.Settings.Theme.Accent
+        box.Text = textbox.Default
+        box.PlaceholderText = textbox.PlaceholderText
+        box.TextColor3 = Library.Settings.Theme.Text
+        box.Font = Library.Settings.Font
+        box.TextSize = Library.Settings.FontSize
+        box.Parent = holder
+
+        -- Textbox functionality
+        box.FocusLost:Connect(function(enterPressed)
+            textbox.Callback(box.Text)
+            Library.Flags[textbox.Flag] = box.Text
+        end)
+
+        return textbox
+    end
+
     return section
 end
 
