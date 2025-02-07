@@ -1,0 +1,240 @@
+-- example at bottom
+local Library = {}
+Library.__index = Library
+
+-- Initialize core settings
+Library.Settings = {
+    Theme = {
+        Background = Color3.fromRGB(25, 25, 25),
+        Section = Color3.fromRGB(35, 35, 35),
+        Accent = Color3.fromRGB(76, 162, 252),
+        Text = Color3.fromRGB(255, 255, 255),
+        DarkText = Color3.fromRGB(150, 150, 150)
+    },
+    Font = Font.fromEnum(Enum.Font.GothamBold),
+    FontSize = 12
+}
+
+function Library:CreateWindow(title)
+    local window = {
+        Title = title or "New Window",
+        Pages = {},
+        CurrentPage = nil,
+        Flags = {},
+        Elements = {}
+    }
+    setmetatable(window, Library)
+
+    -- Create main GUI
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "UILibrary"
+    gui.Parent = game:GetService("CoreGui")
+    
+    -- Create main frame
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 600, 0, 400)
+    main.Position = UDim2.new(0.5, -300, 0.5, -200)
+    main.BackgroundColor3 = Library.Settings.Theme.Background
+    main.BorderSizePixel = 0
+    main.Parent = gui
+
+    -- Create sidebar
+    local sidebar = Instance.new("Frame")
+    sidebar.Name = "Sidebar"
+    sidebar.Size = UDim2.new(0, 150, 1, 0)
+    sidebar.BackgroundColor3 = Library.Settings.Theme.Section
+    sidebar.BorderSizePixel = 0
+    sidebar.Parent = main
+
+    -- Create content area
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, -150, 1, 0)
+    content.Position = UDim2.new(0, 150, 0, 0)
+    content.BackgroundColor3 = Library.Settings.Theme.Background
+    content.BorderSizePixel = 0
+    content.Parent = main
+
+    window.GUI = gui
+    window.Main = main
+    window.Sidebar = sidebar
+    window.Content = content
+
+    -- Make window draggable
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+        end
+    end)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    return window
+end
+
+function Library:AddPage(name)
+    local page = {
+        Name = name,
+        Sections = {}
+    }
+
+    -- Create page button in sidebar
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.BackgroundColor3 = Library.Settings.Theme.Section
+    button.BorderSizePixel = 0
+    button.Text = name
+    button.TextColor3 = Library.Settings.Theme.Text
+    button.Font = Library.Settings.Font
+    button.TextSize = Library.Settings.FontSize
+    button.Parent = self.Sidebar
+
+    -- Create page content
+    local pageFrame = Instance.new("ScrollingFrame")
+    pageFrame.Name = name
+    pageFrame.Size = UDim2.new(1, 0, 1, 0)
+    pageFrame.BackgroundTransparency = 1
+    pageFrame.BorderSizePixel = 0
+    pageFrame.ScrollBarThickness = 2
+    pageFrame.Visible = false
+    pageFrame.Parent = self.Content
+
+    page.Button = button
+    page.Frame = pageFrame
+
+    table.insert(self.Pages, page)
+    return page
+end
+
+function Library:AddSection(name)
+    local section = {
+        Name = name,
+        Elements = {}
+    }
+
+    -- Create section container
+    local container = Instance.new("Frame")
+    container.Name = name
+    container.Size = UDim2.new(1, -20, 0, 30) -- Will auto-adjust based on content
+    container.BackgroundColor3 = Library.Settings.Theme.Section
+    container.BorderSizePixel = 0
+    container.Parent = self.Frame
+
+    -- Section title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 25)
+    title.BackgroundTransparency = 1
+    title.Text = name
+    title.TextColor3 = Library.Settings.Theme.Text
+    title.Font = Library.Settings.Font
+    title.TextSize = Library.Settings.FontSize
+    title.Parent = container
+
+    -- Elements container
+    local elements = Instance.new("Frame")
+    elements.Name = "Elements"
+    elements.Size = UDim2.new(1, 0, 0, 0)
+    elements.Position = UDim2.new(0, 0, 0, 25)
+    elements.BackgroundTransparency = 1
+    elements.AutomaticSize = Enum.AutomaticSize.Y
+    elements.Parent = container
+
+    -- Layout for elements
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 5)
+    layout.Parent = elements
+
+    section.Container = container
+    section.Elements = elements
+
+    -- Add Toggle function
+    function section:AddToggle(options)
+        options = options or {}
+        local toggle = {
+            Name = options.Name or "Toggle",
+            Flag = options.Flag or options.Name,
+            Callback = options.Callback or function() end,
+            Value = options.Default or false
+        }
+
+        -- Create toggle button
+        local holder = Instance.new("Frame")
+        holder.Name = "ToggleHolder"
+        holder.Size = UDim2.new(1, 0, 0, 25)
+        holder.BackgroundTransparency = 1
+        holder.Parent = self.Elements
+
+        local button = Instance.new("TextButton")
+        button.Name = "Toggle"
+        button.Size = UDim2.new(0, 20, 0, 20)
+        button.Position = UDim2.new(0, 5, 0, 2)
+        button.BackgroundColor3 = Library.Settings.Theme.Section
+        button.BorderColor3 = Library.Settings.Theme.Accent
+        button.Text = ""
+        button.Parent = holder
+
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(1, -30, 1, 0)
+        label.Position = UDim2.new(0, 30, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = toggle.Name
+        label.TextColor3 = Library.Settings.Theme.Text
+        label.Font = Library.Settings.Font
+        label.TextSize = Library.Settings.FontSize
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = holder
+
+        -- Toggle functionality
+        local function updateToggle()
+            button.BackgroundColor3 = toggle.Value and Library.Settings.Theme.Accent or Library.Settings.Theme.Section
+            toggle.Callback(toggle.Value)
+            Library.Flags[toggle.Flag] = toggle.Value
+        end
+
+        button.MouseButton1Click:Connect(function()
+            toggle.Value = not toggle.Value
+            updateToggle()
+        end)
+
+        -- Initialize
+        updateToggle()
+        return toggle
+    end
+
+    return section
+end
+
+-- Would you like me to continue with implementing more features like:
+-- 1. Sections
+-- 2. Toggles
+-- 3. Sliders
+-- 4. Dropdowns
+-- 5. Colorpickers
+
+return Library
