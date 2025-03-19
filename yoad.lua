@@ -4,9 +4,14 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+-- Clear any existing ESP
+for i,v in pairs(getgenv()) do
+    if tostring(i):find("ESP") then
+        getgenv()[i] = nil
+    end
+end
 
 local espObjects = {}
-
 
 local Utility = {
     getCharacter = function(player)
@@ -27,7 +32,6 @@ local Utility = {
         return player.Team and player.Team == LocalPlayer.Team
     end
 }
-
 
 local Settings = {
     showTeam = true,
@@ -396,13 +400,6 @@ do
             print("Removed ESP for: " .. player.Name)
         end
     end)
-end
-
--- Before loading the new ESP
-for i,v in pairs(getgenv()) do
-    if tostring(i):find("ESP") then
-        getgenv()[i] = nil
-    end
 end
 
 return EntityESP
