@@ -398,4 +398,11 @@ do
     end)
 end
 
+-- Before loading the new ESP
+for i,v in pairs(getgenv()) do
+    if tostring(i):find("ESP") then
+        getgenv()[i] = nil
+    end
+end
+
 return EntityESP
