@@ -30,7 +30,7 @@ local Utility = {
 
 
 local Settings = {
-    showTeam = false,
+    showTeam = true,
     allyColor = Color3.fromRGB(0, 255, 0),
     enemyColor = Color3.fromRGB(255, 0, 0),
     maxEspDistance = 1000,
