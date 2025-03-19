@@ -48,8 +48,8 @@ local Settings = {
     textSize = 13
 }
 
-local EntityESP = {}
-EntityESP.__index = EntityESP
+local PlayerESP = {}
+PlayerESP.__index = PlayerESP
 
 local worldToViewportPoint = clonefunction(Instance.new('Camera').WorldToViewportPoint)
 local vectorToWorldSpace = CFrame.new().VectorToWorldSpace
@@ -93,19 +93,19 @@ local ESP_RED_COLOR = Color3.fromRGB(192, 57, 43)
 local ESP_GREEN_COLOR = Color3.fromRGB(39, 174, 96)
 local TRIANGLE_ANGLE = mathRad(45)
 
-EntityESP.id = 0
+PlayerESP.id = 0
 
-function EntityESP.new(player)
+function PlayerESP.new(player)
     if not player then return end
     
     if espObjects[player.UserId] then
         return espObjects[player.UserId]
     end
     
-    EntityESP.id = EntityESP.id + 1
-    local self = setmetatable({}, EntityESP)
+    PlayerESP.id = PlayerESP.id + 1
+    local self = setmetatable({}, PlayerESP)
     
-    self._id = EntityESP.id
+    self._id = PlayerESP.id
     self._player = player
     self._playerName = player.Name
     
@@ -116,34 +116,35 @@ function EntityESP.new(player)
     self._triangle.Filled = true
     
     self._label = Drawing.new('Text')
-    self._label.Visible = false
+    self._label.Visible = true
     self._label.Center = true
     self._label.Outline = true
-    self._label.Text = ''
+    self._label.Text = player.Name
     self._label.Size = Settings.textSize
     self._label.Color = Color3.fromRGB(255, 255, 255)
     
     self._box = Drawing.new('Quad')
-    self._box.Visible = false
+    self._box.Visible = true
     self._box.Thickness = 1
     self._box.Filled = false
     self._box.Color = Color3.fromRGB(255, 255, 255)
     
     self._healthBar = Drawing.new('Quad')
-    self._healthBar.Visible = false
+    self._healthBar.Visible = true
     self._healthBar.Thickness = 1
     self._healthBar.Filled = false
     self._healthBar.Color = Color3.fromRGB(255, 255, 255)
     
     self._healthBarValue = Drawing.new('Quad')
-    self._healthBarValue.Visible = false
+    self._healthBarValue.Visible = true
     self._healthBarValue.Thickness = 1
     self._healthBarValue.Filled = true
     self._healthBarValue.Color = Color3.fromRGB(0, 255, 0)
     
     self._line = Drawing.new('Line')
-    self._line.Visible = false
+    self._line.Visible = true
     self._line.Color = Color3.fromRGB(255, 255, 255)
+    self._line.Thickness = 1
     
     self._labelObject = self._label
     
@@ -152,11 +153,11 @@ function EntityESP.new(player)
     return self
 end
 
-function EntityESP:ConvertVector(...)
+function PlayerESP:ConvertVector(...)
     return vectorToWorldSpace(self._cameraCFrame, vector3New(...))
 end
 
-function EntityESP:GetOffsetTrianglePosition(closestPoint, radiusOfDegree)
+function PlayerESP:GetOffsetTrianglePosition(closestPoint, radiusOfDegree)
     local cosOfRadius, sinOfRadius = mathCos(radiusOfDegree), mathSin(radiusOfDegree)
     local closestPointX, closestPointY = closestPoint.X, closestPoint.Y
     
@@ -180,7 +181,7 @@ function EntityESP:GetOffsetTrianglePosition(closestPoint, radiusOfDegree)
            Vector2New(mathFloor(pointX3), mathFloor(pointY3))
 end
 
-function EntityESP:Update()
+function PlayerESP:Update()
     local camera = workspace.CurrentCamera
     self._camera = camera
     if not camera then return self:Hide() end
@@ -237,13 +238,12 @@ function EntityESP:Update()
     local healthBar = self._healthBar
     local healthBarValue = self._healthBarValue
     
-    local text = string.format("[%s] [%d]\n[%d/%d] [%d%%] [%s]",
+    local text = string.format("[%s] [%d]\n[%d/%d] [%d%%]",
         self._playerName,
         mathFloor(distance),
         mathFloor(health),
         mathFloor(maxHealth),
-        mathFloor(floatHealth),
-        userId
+        mathFloor(floatHealth)
     )
     
     label.Visible = visibleOnScreen
@@ -304,7 +304,7 @@ function EntityESP:Update()
     end
 end
 
-function EntityESP:Hide(bypassTriangle)
+function PlayerESP:Hide(bypassTriangle)
     if not bypassTriangle then
         self._triangle.Visible = false
     end
@@ -319,7 +319,7 @@ function EntityESP:Hide(bypassTriangle)
     self._healthBarValue.Visible = false
 end
 
-function EntityESP:Destroy()
+function PlayerESP:Destroy()
     if not self._label then return end
     
     self._label:Destroy()
@@ -332,35 +332,34 @@ end
 
 local function updateESP()
     local camera = workspace.CurrentCamera
-    EntityESP._camera = camera
+    PlayerESP._camera = camera
     if not camera then return end
     
-    EntityESP._cameraCFrame = EntityESP._camera.CFrame
-    EntityESP._cameraPosition = EntityESP._cameraCFrame.Position
+    PlayerESP._cameraCFrame = PlayerESP._camera.CFrame
+    PlayerESP._cameraPosition = PlayerESP._cameraCFrame.Position
     
     local viewportSize = camera.ViewportSize
     
-    EntityESP._viewportSize = Vector2New(viewportSize.X / 2, viewportSize.Y - 10)
-    EntityESP._viewportSizeCenter = viewportSize / 2
+    PlayerESP._viewportSize = Vector2New(viewportSize.X / 2, viewportSize.Y - 10)
+    PlayerESP._viewportSizeCenter = viewportSize / 2
     
     scalarPointAX, scalarPointAY = scalarSize, scalarSize
     scalarPointBX, scalarPointBY = -scalarSize, -scalarSize
     
-    labelOffset = EntityESP:ConvertVector(0, 3.25, 0)
-    tracerOffset = EntityESP:ConvertVector(0, -4.5, 0)
+    labelOffset = PlayerESP:ConvertVector(0, 3.25, 0)
+    tracerOffset = PlayerESP:ConvertVector(0, -4.5, 0)
     
-    boxOffsetTopRight = EntityESP:ConvertVector(2.5, 3, 0)
-    boxOffsetBottomLeft = EntityESP:ConvertVector(-2.5, -4.5, 0)
+    boxOffsetTopRight = PlayerESP:ConvertVector(2.5, 3, 0)
+    boxOffsetBottomLeft = PlayerESP:ConvertVector(-2.5, -4.5, 0)
     
-    healthBarOffsetTopRight = EntityESP:ConvertVector(-3, 3, 0)
-    healthBarOffsetBottomLeft = EntityESP:ConvertVector(-3.5, -4.5, 0)
+    healthBarOffsetTopRight = PlayerESP:ConvertVector(-3, 3, 0)
+    healthBarOffsetBottomLeft = PlayerESP:ConvertVector(-3.5, -4.5, 0)
     
-    healthBarValueOffsetTopRight = EntityESP:ConvertVector(-3.05, 2.95, 0)
-    healthBarValueOffsetBottomLeft = EntityESP:ConvertVector(3.45, 4.45, 0)
+    healthBarValueOffsetTopRight = PlayerESP:ConvertVector(-3.05, 2.95, 0)
+    healthBarValueOffsetBottomLeft = PlayerESP:ConvertVector(3.45, 4.45, 0)
 end
 
 do
-    print("Starting ESP initialization")
     updateESP()
     
     RunService:BindToRenderStep(id, Enum.RenderPriority.Camera.Value, function()
@@ -370,9 +369,6 @@ do
                 local esp = espObjects[player.UserId]
                 if esp then
                     esp:Update()
-                    if not esp._label.Visible then
-                        -- print(string.format("ESP hidden for %s - Distance: %d", player.Name, (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Magnitude or 0)))
-                    end
                 end
             end
         end
@@ -380,15 +376,13 @@ do
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            local esp = EntityESP.new(player)
-            print("Created ESP for: " .. player.Name)
+            local esp = PlayerESP.new(player)
         end
     end
 
     Players.PlayerAdded:Connect(function(player)
         if player ~= LocalPlayer then
-            local esp = EntityESP.new(player)
-            print("New player ESP created: " .. player.Name)
+            local esp = PlayerESP.new(player)
         end
     end)
 
@@ -397,9 +391,8 @@ do
         if esp then
             esp:Destroy()
             espObjects[player.UserId] = nil
-            print("Removed ESP for: " .. player.Name)
         end
     end)
 end
 
-return EntityESP
+return PlayerESP
