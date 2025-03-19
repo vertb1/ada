@@ -367,7 +367,7 @@ do
                 if esp then
                     esp:Update()
                     if not esp._label.Visible then
-                        print(string.format("ESP hidden for %s - Distance: %d", player.Name, (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Magnitude or 0)))
+                        -- print(string.format("ESP hidden for %s - Distance: %d", player.Name, (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Magnitude or 0)))
                     end
                 end
             end
