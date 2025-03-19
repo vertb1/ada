@@ -1,398 +1,209 @@
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Clear any existing ESP
+-- Clear any previous ESP
 for i,v in pairs(getgenv()) do
     if tostring(i):find("ESP") then
         getgenv()[i] = nil
     end
 end
 
-local espObjects = {}
+local SimpleESP = {}
+SimpleESP.Objects = {}
+SimpleESP.Settings = {
+    Enabled = true,
+    TeamCheck = false,  -- Set to false to show teammates
+    ShowName = true,
+    ShowDistance = true,
+    ShowHealth = true,
+    ShowBox = true,
+    ShowTracer = true,
+    BoxColor = Color3.fromRGB(255, 0, 0),
+    TracerColor = Color3.fromRGB(255, 0, 0),
+    TextColor = Color3.fromRGB(255, 255, 255),
+    TextSize = 14,
+    TracerThickness = 1,
+    BoxThickness = 1,
+    MaxDistance = 1000
+}
 
-local Utility = {
-    getCharacter = function(player)
+function SimpleESP:CreateESP(player)
+    if player == LocalPlayer then return end
+    
+    local esp = {}
+    
+    -- Create visual elements
+    esp.Name = Drawing.new("Text")
+    esp.Name.Visible = false
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    esp.Name.Size = SimpleESP.Settings.TextSize
+    esp.Name.Color = SimpleESP.Settings.TextColor
+    esp.Name.Font = 2
+    
+    esp.Box = Drawing.new("Square")
+    esp.Box.Visible = false
+    esp.Box.Color = SimpleESP.Settings.BoxColor
+    esp.Box.Thickness = SimpleESP.Settings.BoxThickness
+    esp.Box.Filled = false
+    esp.Box.Transparency = 1
+    
+    esp.Tracer = Drawing.new("Line")
+    esp.Tracer.Visible = false
+    esp.Tracer.Color = SimpleESP.Settings.TracerColor
+    esp.Tracer.Thickness = SimpleESP.Settings.TracerThickness
+    esp.Tracer.Transparency = 1
+    
+    SimpleESP.Objects[player] = esp
+    print("Created ESP for: " .. player.Name)
+    
+    -- When player leaves
+    player.CharacterRemoving:Connect(function()
+        SimpleESP:RemoveESP(player)
+    end)
+    
+    return esp
+end
+
+function SimpleESP:RemoveESP(player)
+    local esp = SimpleESP.Objects[player]
+    if not esp then return end
+    
+    -- Remove all drawings
+    for _, drawing in pairs(esp) do
+        if drawing.Remove then
+            drawing:Remove()
+        end
+    end
+    
+    SimpleESP.Objects[player] = nil
+    print("Removed ESP for: " .. player.Name)
+end
+
+function SimpleESP:UpdateESP()
+    for player, esp in pairs(SimpleESP.Objects) do
+        if not SimpleESP.Settings.Enabled then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
+        end
+        
         local character = player.Character
-        if not character then return end
-        
-        local humanoid = character:FindFirstChild("Humanoid")
-        if not humanoid then return end
-        
-        return character, humanoid.MaxHealth, (humanoid.Health/humanoid.MaxHealth) * 100, humanoid.Health, character:FindFirstChild("HumanoidRootPart")
-    end,
-    
-    getRootPart = function(player)
-        return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    end,
-    
-    isTeamMate = function(player)
-        return player.Team and player.Team == LocalPlayer.Team
-    end
-}
-
-local Settings = {
-    showTeam = true,
-    allyColor = Color3.fromRGB(0, 255, 0),
-    enemyColor = Color3.fromRGB(255, 0, 0),
-    maxEspDistance = 1000,
-    toggleBoxes = true,
-    toggleTracers = true,
-    unlockTracers = false,
-    showHealthBar = true,
-    proximityArrows = true,
-    maxProximityArrowDistance = 100,
-    proximityArrowsSize = 20,
-    textSize = 13
-}
-
-local PlayerESP = {}
-PlayerESP.__index = PlayerESP
-
-local worldToViewportPoint = clonefunction(Instance.new('Camera').WorldToViewportPoint)
-local vectorToWorldSpace = CFrame.new().VectorToWorldSpace
-local getMouseLocation = clonefunction(UserInputService.GetMouseLocation)
-
-local id = HttpService:GenerateGUID(false)
-local userId = "1234"
-
-local lerp = Color3.new().lerp
-local vector3New = Vector3.new
-local Vector2New = Vector2.new
-
-local mathFloor = math.floor
-local mathRad = math.rad
-local mathCos = math.cos
-local mathSin = math.sin
-local mathAtan2 = math.atan2
-
-local showTeam = Settings.showTeam
-local allyColor = Settings.allyColor
-local enemyColor = Settings.enemyColor
-local maxEspDistance = Settings.maxEspDistance
-local toggleBoxes = Settings.toggleBoxes
-local toggleTracers = Settings.toggleTracers
-local unlockTracers = Settings.unlockTracers
-local showHealthBar = Settings.showHealthBar
-local proximityArrows = Settings.proximityArrows
-local maxProximityArrowDistance = Settings.maxProximityArrowDistance
-
-local scalarPointAX, scalarPointAY
-local scalarPointBX, scalarPointBY
-
-local labelOffset, tracerOffset
-local boxOffsetTopRight, boxOffsetBottomLeft
-local healthBarOffsetTopRight, healthBarOffsetBottomLeft
-local healthBarValueOffsetTopRight, healthBarValueOffsetBottomLeft
-
-local scalarSize = Settings.proximityArrowsSize
-
-local ESP_RED_COLOR = Color3.fromRGB(192, 57, 43)
-local ESP_GREEN_COLOR = Color3.fromRGB(39, 174, 96)
-local TRIANGLE_ANGLE = mathRad(45)
-
-PlayerESP.id = 0
-
-function PlayerESP.new(player)
-    if not player then return end
-    
-    if espObjects[player.UserId] then
-        return espObjects[player.UserId]
-    end
-    
-    PlayerESP.id = PlayerESP.id + 1
-    local self = setmetatable({}, PlayerESP)
-    
-    self._id = PlayerESP.id
-    self._player = player
-    self._playerName = player.Name
-    
-    self._triangle = Drawing.new('Triangle')
-    self._triangle.Visible = true
-    self._triangle.Thickness = 0
-    self._triangle.Color = Color3.fromRGB(255, 255, 255)
-    self._triangle.Filled = true
-    
-    self._label = Drawing.new('Text')
-    self._label.Visible = true
-    self._label.Center = true
-    self._label.Outline = true
-    self._label.Text = player.Name
-    self._label.Size = Settings.textSize
-    self._label.Color = Color3.fromRGB(255, 255, 255)
-    
-    self._box = Drawing.new('Quad')
-    self._box.Visible = true
-    self._box.Thickness = 1
-    self._box.Filled = false
-    self._box.Color = Color3.fromRGB(255, 255, 255)
-    
-    self._healthBar = Drawing.new('Quad')
-    self._healthBar.Visible = true
-    self._healthBar.Thickness = 1
-    self._healthBar.Filled = false
-    self._healthBar.Color = Color3.fromRGB(255, 255, 255)
-    
-    self._healthBarValue = Drawing.new('Quad')
-    self._healthBarValue.Visible = true
-    self._healthBarValue.Thickness = 1
-    self._healthBarValue.Filled = true
-    self._healthBarValue.Color = Color3.fromRGB(0, 255, 0)
-    
-    self._line = Drawing.new('Line')
-    self._line.Visible = true
-    self._line.Color = Color3.fromRGB(255, 255, 255)
-    self._line.Thickness = 1
-    
-    self._labelObject = self._label
-    
-    espObjects[player.UserId] = self
-    
-    return self
-end
-
-function PlayerESP:ConvertVector(...)
-    return vectorToWorldSpace(self._cameraCFrame, vector3New(...))
-end
-
-function PlayerESP:GetOffsetTrianglePosition(closestPoint, radiusOfDegree)
-    local cosOfRadius, sinOfRadius = mathCos(radiusOfDegree), mathSin(radiusOfDegree)
-    local closestPointX, closestPointY = closestPoint.X, closestPoint.Y
-    
-    local sameBCCos = (closestPointX + scalarPointBX * cosOfRadius)
-    local sameBCSin = (closestPointY + scalarPointBX * sinOfRadius)
-    
-    local sameACSin = (scalarPointAY * sinOfRadius)
-    local sameACCos = (scalarPointAY * cosOfRadius)
-    
-    local pointX1 = (closestPointX + scalarPointAX * cosOfRadius) - sameACSin
-    local pointY1 = closestPointY + (scalarPointAX * sinOfRadius) + sameACCos
-    
-    local pointX2 = sameBCCos - (scalarPointBY * sinOfRadius)
-    local pointY2 = sameBCSin + (scalarPointBY * cosOfRadius)
-    
-    local pointX3 = sameBCCos - sameACSin
-    local pointY3 = sameBCSin + sameACCos
-    
-    return Vector2New(mathFloor(pointX1), mathFloor(pointY1)), 
-           Vector2New(mathFloor(pointX2), mathFloor(pointY2)), 
-           Vector2New(mathFloor(pointX3), mathFloor(pointY3))
-end
-
-function PlayerESP:Update()
-    local camera = workspace.CurrentCamera
-    self._camera = camera
-    if not camera then return self:Hide() end
-    
-    local character, maxHealth, floatHealth, health, rootPart = Utility:getCharacter(self._player)
-    if not character then return self:Hide() end
-    
-    rootPart = rootPart or Utility:getRootPart(self._player)
-    if not rootPart then return self:Hide() end
-    
-    local rootPartPosition = rootPart.Position
-    
-    local labelPos, visibleOnScreen = worldToViewportPoint(camera, rootPartPosition + labelOffset)
-    local triangle = self._triangle
-    
-    local isTeamMate = Utility:isTeamMate(self._player)
-    if isTeamMate and not showTeam then return self:Hide() end
-    
-    local distance = (rootPartPosition - self._cameraPosition).Magnitude
-    if distance > maxEspDistance then return self:Hide() end
-    
-    local espColor = isTeamMate and allyColor or enemyColor
-    local canView = false
-    
-    if proximityArrows and not visibleOnScreen and distance < maxProximityArrowDistance then
-        local vectorUnit
-        
-        if labelPos.Z < 0 then
-            vectorUnit = -(Vector2.new(labelPos.X, labelPos.Y) - self._viewportSizeCenter).Unit
-        else
-            vectorUnit = (Vector2.new(labelPos.X, labelPos.Y) - self._viewportSizeCenter).Unit
+        if not character then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
         end
         
-        local degreeOfCorner = -mathAtan2(vectorUnit.X, vectorUnit.Y) - TRIANGLE_ANGLE
-        local closestPointToPlayer = self._viewportSizeCenter + vectorUnit * scalarSize
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart or not humanoid then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
+        end
         
-        local pointA, pointB, pointC = self:GetOffsetTrianglePosition(closestPointToPlayer, degreeOfCorner)
+        -- Check if player is teammate
+        if SimpleESP.Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
+        end
         
-        triangle.PointA = pointA
-        triangle.PointB = pointB
-        triangle.PointC = pointC
-        triangle.Color = espColor
-        canView = true
-    end
-    
-    triangle.Visible = canView
-    if not visibleOnScreen then return self:Hide(true) end
-    
-    self._visible = visibleOnScreen
-    
-    local label = self._label
-    local box = self._box
-    local line = self._line
-    local healthBar = self._healthBar
-    local healthBarValue = self._healthBarValue
-    
-    local text = string.format("[%s] [%d]\n[%d/%d] [%d%%]",
-        self._playerName,
-        mathFloor(distance),
-        mathFloor(health),
-        mathFloor(maxHealth),
-        mathFloor(floatHealth)
-    )
-    
-    label.Visible = visibleOnScreen
-    label.Position = Vector2New(labelPos.X, labelPos.Y - label.TextBounds.Y)
-    label.Text = text
-    label.Color = espColor
-    
-    if toggleBoxes then
-        local boxTopRight = worldToViewportPoint(camera, rootPartPosition + boxOffsetTopRight)
-        local boxBottomLeft = worldToViewportPoint(camera, rootPartPosition + boxOffsetBottomLeft)
+        -- Calculate distance
+        local distance = (Camera.CFrame.Position - rootPart.Position).Magnitude
+        if distance > SimpleESP.Settings.MaxDistance then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
+        end
         
-        box.Visible = visibleOnScreen
-        box.PointA = Vector2New(boxTopRight.X, boxTopRight.Y)
-        box.PointB = Vector2New(boxBottomLeft.X, boxTopRight.Y)
-        box.PointC = Vector2New(boxBottomLeft.X, boxBottomLeft.Y)
-        box.PointD = Vector2New(boxTopRight.X, boxBottomLeft.Y)
-        box.Color = espColor
-    else
-        box.Visible = false
-    end
-    
-    if toggleTracers then
-        local linePosition = worldToViewportPoint(camera, rootPartPosition + tracerOffset)
+        -- Get screen position
+        local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+        if not onScreen then
+            esp.Name.Visible = false
+            esp.Box.Visible = false
+            esp.Tracer.Visible = false
+            continue
+        end
         
-        line.Visible = visibleOnScreen
-        line.From = unlockTracers and getMouseLocation(UserInputService) or self._viewportSize
-        line.To = Vector2New(linePosition.X, linePosition.Y)
-        line.Color = espColor
-    else
-        line.Visible = false
-    end
-    
-    if showHealthBar then
-        local healthBarValueHealth = (1 - (floatHealth / 100)) * 7.4
-        
-        local healthBarTopRight = worldToViewportPoint(camera, rootPartPosition + healthBarOffsetTopRight)
-        local healthBarBottomLeft = worldToViewportPoint(camera, rootPartPosition + healthBarOffsetBottomLeft)
-        
-        local healthBarValueTopRight = worldToViewportPoint(camera, rootPartPosition + healthBarValueOffsetTopRight - self:ConvertVector(0, healthBarValueHealth, 0))
-        local healthBarValueBottomLeft = worldToViewportPoint(camera, rootPartPosition - healthBarValueOffsetBottomLeft)
-        
-        healthBar.Visible = visibleOnScreen
-        healthBar.Color = espColor
-        healthBar.PointA = Vector2New(healthBarTopRight.X, healthBarTopRight.Y)
-        healthBar.PointB = Vector2New(healthBarBottomLeft.X, healthBarTopRight.Y)
-        healthBar.PointC = Vector2New(healthBarBottomLeft.X, healthBarBottomLeft.Y)
-        healthBar.PointD = Vector2New(healthBarTopRight.X, healthBarBottomLeft.Y)
-        
-        healthBarValue.Visible = visibleOnScreen
-        healthBarValue.Color = lerp(ESP_RED_COLOR, ESP_GREEN_COLOR, floatHealth / 100)
-        healthBarValue.PointA = Vector2New(healthBarValueTopRight.X, healthBarValueTopRight.Y)
-        healthBarValue.PointB = Vector2New(healthBarValueBottomLeft.X, healthBarValueTopRight.Y)
-        healthBarValue.PointC = Vector2New(healthBarValueBottomLeft.X, healthBarValueBottomLeft.Y)
-        healthBarValue.PointD = Vector2New(healthBarValueTopRight.X, healthBarValueBottomLeft.Y)
-    else
-        healthBar.Visible = false
-        healthBarValue.Visible = false
-    end
-end
-
-function PlayerESP:Hide(bypassTriangle)
-    if not bypassTriangle then
-        self._triangle.Visible = false
-    end
-    
-    if not self._visible then return end
-    self._visible = false
-    
-    self._label.Visible = false
-    self._box.Visible = false
-    self._line.Visible = false
-    self._healthBar.Visible = false
-    self._healthBarValue.Visible = false
-end
-
-function PlayerESP:Destroy()
-    if not self._label then return end
-    
-    self._label:Destroy()
-    self._box:Destroy()
-    self._line:Destroy()
-    self._healthBar:Destroy()
-    self._healthBarValue:Destroy()
-    self._triangle:Destroy()
-end
-
-local function updateESP()
-    local camera = workspace.CurrentCamera
-    PlayerESP._camera = camera
-    if not camera then return end
-    
-    PlayerESP._cameraCFrame = PlayerESP._camera.CFrame
-    PlayerESP._cameraPosition = PlayerESP._cameraCFrame.Position
-    
-    local viewportSize = camera.ViewportSize
-    
-    PlayerESP._viewportSize = Vector2New(viewportSize.X / 2, viewportSize.Y - 10)
-    PlayerESP._viewportSizeCenter = viewportSize / 2
-    
-    scalarPointAX, scalarPointAY = scalarSize, scalarSize
-    scalarPointBX, scalarPointBY = -scalarSize, -scalarSize
-    
-    labelOffset = PlayerESP:ConvertVector(0, 3.25, 0)
-    tracerOffset = PlayerESP:ConvertVector(0, -4.5, 0)
-    
-    boxOffsetTopRight = PlayerESP:ConvertVector(2.5, 3, 0)
-    boxOffsetBottomLeft = PlayerESP:ConvertVector(-2.5, -4.5, 0)
-    
-    healthBarOffsetTopRight = PlayerESP:ConvertVector(-3, 3, 0)
-    healthBarOffsetBottomLeft = PlayerESP:ConvertVector(-3.5, -4.5, 0)
-    
-    healthBarValueOffsetTopRight = PlayerESP:ConvertVector(-3.05, 2.95, 0)
-    healthBarValueOffsetBottomLeft = PlayerESP:ConvertVector(3.45, 4.45, 0)
-end
-
-do
-    updateESP()
-    
-    RunService:BindToRenderStep(id, Enum.RenderPriority.Camera.Value, function()
-        updateESP()
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local esp = espObjects[player.UserId]
-                if esp then
-                    esp:Update()
-                end
+        -- Update name text
+        if SimpleESP.Settings.ShowName then
+            local text = player.Name
+            if SimpleESP.Settings.ShowDistance then
+                text = text .. " [" .. math.floor(distance) .. "]"
             end
+            if SimpleESP.Settings.ShowHealth and humanoid then
+                text = text .. " [" .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth) .. "]"
+            end
+            
+            esp.Name.Text = text
+            esp.Name.Position = Vector2.new(screenPos.X, screenPos.Y - 40)
+            esp.Name.Visible = true
+        else
+            esp.Name.Visible = false
         end
-    end)
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local esp = PlayerESP.new(player)
+        
+        -- Update box
+        if SimpleESP.Settings.ShowBox then
+            local size = Vector2.new(2000 / distance, 3000 / distance)
+            esp.Box.Size = size
+            esp.Box.Position = Vector2.new(screenPos.X - size.X / 2, screenPos.Y - size.Y / 2)
+            esp.Box.Visible = true
+        else
+            esp.Box.Visible = false
+        end
+        
+        -- Update tracer
+        if SimpleESP.Settings.ShowTracer then
+            esp.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            esp.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+            esp.Tracer.Visible = true
+        else
+            esp.Tracer.Visible = false
         end
     end
-
-    Players.PlayerAdded:Connect(function(player)
-        if player ~= LocalPlayer then
-            local esp = PlayerESP.new(player)
-        end
-    end)
-
-    Players.PlayerRemoving:Connect(function(player)
-        local esp = espObjects[player.UserId]
-        if esp then
-            esp:Destroy()
-            espObjects[player.UserId] = nil
-        end
-    end)
 end
 
-return PlayerESP
+-- Create ESP for existing players
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        SimpleESP:CreateESP(player)
+    end
+end
+
+-- Create ESP for new players
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        SimpleESP:CreateESP(player)
+    end
+end)
+
+-- Remove ESP when player leaves
+Players.PlayerRemoving:Connect(function(player)
+    SimpleESP:RemoveESP(player)
+end)
+
+-- Update ESP
+RunService:BindToRenderStep("SimpleESP", 1, function()
+    SimpleESP:UpdateESP()
+end)
+
+-- Toggle ESP
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightAlt then
+        SimpleESP.Settings.Enabled = not SimpleESP.Settings.Enabled
+        print("ESP " .. (SimpleESP.Settings.Enabled and "Enabled" or "Disabled"))
+    end
+end)
+
+print("Simple ESP Loaded!")
+return SimpleESP
