@@ -1187,3 +1187,344 @@ UISettings:AddButton({
 
 -- Show a notification
 MyUI:Notify("Welcome", "UI has been loaded successfully!", 3)
+
+-- Load the SimpleUI library from GitHub
+local SimpleUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/vertb1/ada/refs/heads/main/cypher.lua"))():Initialize()
+
+-- Create a modernized UI
+local ModernUI = SimpleUI("Modern Hub", {
+    size = UDim2.new(0, 500, 0, 350) -- Larger UI for better appearance
+})
+
+-- Set a modern purple accent color
+ModernUI:SetAccentColor(Color3.fromRGB(131, 81, 255))
+
+-- Create Main tab
+local MainTab = ModernUI:AddTab("Main")
+local MovementSection = MainTab:AddSection("Movement")
+local CombatSection = MainTab:AddSection("Combat")
+
+-- Create a keybind system
+local keybinds = {}
+
+-- Function to handle keybinds
+local function setupKeybind(name, defaultKey, callback)
+    keybinds[name] = {
+        key = defaultKey,
+        enabled = false,
+        callback = callback
+    }
+    
+    -- Monitor key presses
+    game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode.Name == keybinds[name].key and keybinds[name].enabled then
+            keybinds[name].callback()
+        end
+    end)
+    
+    return keybinds[name]
+end
+
+-- Create a color picker function (using dropdown + buttons to simulate a color picker)
+local function createColorPicker(section, name, defaultColor, callback)
+    local colorOptions = {
+        "Red", "Green", "Blue", "Purple", "Pink", 
+        "Orange", "Yellow", "Cyan", "White", "Black"
+    }
+    
+    local colorValues = {
+        Red = Color3.fromRGB(255, 0, 0),
+        Green = Color3.fromRGB(0, 255, 0),
+        Blue = Color3.fromRGB(0, 0, 255),
+        Purple = Color3.fromRGB(131, 81, 255),
+        Pink = Color3.fromRGB(255, 0, 255),
+        Orange = Color3.fromRGB(255, 165, 0),
+        Yellow = Color3.fromRGB(255, 255, 0),
+        Cyan = Color3.fromRGB(0, 255, 255),
+        White = Color3.fromRGB(255, 255, 255),
+        Black = Color3.fromRGB(0, 0, 0)
+    }
+    
+    local selectedColor = defaultColor
+    
+    -- Add the color picker section
+    local colorFrame = section:AddDropdown({
+        Text = name,
+        Options = colorOptions,
+        Callback = function(selectedOption)
+            selectedColor = colorValues[selectedOption]
+            callback(selectedColor)
+            ModernUI:Notify("Color Changed", "Set to " .. selectedOption, 1.5)
+        end
+    })
+    
+    return {
+        SetColor = function(color)
+            -- Find closest named color
+            local closestName = "Red"
+            local closestDistance = math.huge
+            
+            for name, value in pairs(colorValues) do
+                local dist = (value.R - color.R)^2 + (value.G - color.G)^2 + (value.B - color.B)^2
+                if dist < closestDistance then
+                    closestDistance = dist
+                    closestName = name
+                end
+            end
+            
+            colorFrame:SetValue(closestName)
+            callback(colorValues[closestName])
+        end
+    }
+end
+
+-- Create a key picker function
+local function createKeyPicker(section, name, defaultKey, callback)
+    local keyPickerToggle = section:AddToggle({
+        Text = name .. " [" .. defaultKey .. "]",
+        Default = false,
+        Callback = function(value)
+            keybinds[name].enabled = value
+            callback(value)
+        end
+    })
+    
+    -- Add a button to change the key
+    section:AddButton({
+        Text = "Change " .. name .. " Key",
+        Callback = function()
+            keyPickerToggle.Label.Text = name .. " [Press any key...]"
+            
+            local connection
+            connection = game:GetService("UserInputService").InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    local keyName = input.KeyCode.Name
+                    keybinds[name].key = keyName
+                    keyPickerToggle.Label.Text = name .. " [" .. keyName .. "]"
+                    ModernUI:Notify("Keybind Changed", name .. " is now bound to " .. keyName, 2)
+                    connection:Disconnect()
+                end
+            end)
+        end
+    })
+    
+    -- Set up the keybind
+    setupKeybind(name, defaultKey, function()
+        -- This function will be called when the key is pressed
+        print(name .. " keybind activated")
+    end)
+    
+    return keyPickerToggle
+end
+
+-- Movement settings
+MovementSection:AddToggle({
+    Text = "Speed Hack",
+    Default = false,
+    Callback = function(value)
+        -- Add speed hack functionality
+        ModernUI:Notify("Speed Hack", value and "Enabled" or "Disabled", 2)
+    end
+})
+
+-- Create a slider for speed
+local speedSlider = MovementSection:AddSlider({
+    Text = "Speed Value",
+    Min = 16,
+    Max = 150,
+    Default = 16,
+    Callback = function(value)
+        -- Speed functionality
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end
+})
+
+-- Create a keybind for speed toggle
+createKeyPicker(MovementSection, "Speed Toggle", "LeftShift", function(enabled)
+    -- This gets called when the toggle is clicked
+    if enabled then
+        ModernUI:Notify("Speed Keybind", "Activated with LeftShift", 2)
+    else
+        ModernUI:Notify("Speed Keybind", "Deactivated", 2)
+    end
+})
+
+-- Create a keybind for jump
+createKeyPicker(MovementSection, "Super Jump", "Space", function(enabled)
+    if enabled then
+        ModernUI:Notify("Super Jump", "Activated with Space", 2)
+    else
+        ModernUI:Notify("Super Jump", "Deactivated", 2)
+    end
+})
+
+-- Combat settings
+CombatSection:AddToggle({
+    Text = "Aimbot",
+    Default = false,
+    Callback = function(value)
+        ModernUI:Notify("Aimbot", value and "Enabled" or "Disabled", 2)
+    end
+})
+
+-- Visual tab
+local VisualTab = ModernUI:AddTab("Visuals")
+local ESPSection = VisualTab:AddSection("ESP Settings")
+local WorldSection = VisualTab:AddSection("World Visuals")
+
+-- ESP settings
+local espToggle = ESPSection:AddToggle({
+    Text = "ESP Master Toggle",
+    Default = false,
+    Callback = function(value)
+        ModernUI:Notify("ESP", value and "Enabled" or "Disabled", 2)
+    end
+})
+
+ESPSection:AddToggle({
+    Text = "Show Names",
+    Default = true,
+    Callback = function(value)
+        -- Names ESP functionality
+    end
+})
+
+ESPSection:AddToggle({
+    Text = "Show Boxes",
+    Default = true,
+    Callback = function(value)
+        -- Box ESP functionality
+    end
+})
+
+ESPSection:AddToggle({
+    Text = "Show Health",
+    Default = true,
+    Callback = function(value)
+        -- Health ESP functionality
+    end
+})
+
+-- Color picker for ESP
+createColorPicker(ESPSection, "ESP Color", Color3.fromRGB(255, 0, 0), function(color)
+    -- Update ESP color
+    print("ESP color set to", tostring(color))
+})
+
+-- World settings
+WorldSection:AddToggle({
+    Text = "Fullbright",
+    Default = false,
+    Callback = function(value)
+        if value then
+            game:GetService("Lighting").Brightness = 2
+            game:GetService("Lighting").GlobalShadows = false
+        else
+            game:GetService("Lighting").Brightness = 1
+            game:GetService("Lighting").GlobalShadows = true
+        end
+    end
+})
+
+-- Color picker for UI theme
+createColorPicker(WorldSection, "UI Theme Color", Color3.fromRGB(131, 81, 255), function(color)
+    ModernUI:SetAccentColor(color)
+end)
+
+-- Players tab
+local PlayersTab = ModernUI:AddTab("Players")
+local PlayerSection = PlayersTab:AddSection("Player Selection")
+
+-- Add dropdown
+local playerDropdown = PlayerSection:AddDropdown({
+    Text = "Select Player",
+    Options = {},
+    Callback = function(selected)
+        ModernUI:Notify("Player Selected", selected, 2)
+    end
+})
+
+-- Update player list
+local function UpdatePlayerList()
+    -- Get all players
+    local players = {}
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game:GetService("Players").LocalPlayer then
+            table.insert(players, player.Name)
+        end
+    end
+    
+    -- Add players to dropdown
+    for _, playerName in pairs(players) do
+        playerDropdown:AddOption(playerName)
+    end
+end
+
+-- Initial update
+UpdatePlayerList()
+
+-- Add player actions
+PlayerSection:AddButton({
+    Text = "Teleport to Player",
+    Callback = function()
+        if playerDropdown.Selected then
+            local targetPlayer = game:GetService("Players"):FindFirstChild(playerDropdown.Selected)
+            if targetPlayer and targetPlayer.Character then
+                game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(
+                    targetPlayer.Character.PrimaryPart.CFrame
+                )
+                ModernUI:Notify("Teleported", "Teleported to " .. playerDropdown.Selected, 2)
+            end
+        else
+            ModernUI:Notify("Error", "No player selected", 2)
+        end
+    end
+})
+
+PlayerSection:AddButton({
+    Text = "Spectate Player",
+    Callback = function()
+        if playerDropdown.Selected then
+            ModernUI:Notify("Spectating", "Now spectating " .. playerDropdown.Selected, 2)
+            -- Spectate code would go here
+        else
+            ModernUI:Notify("Error", "No player selected", 2)
+        end
+    end
+})
+
+-- Settings tab
+local SettingsTab = ModernUI:AddTab("Settings")
+local UISettings = SettingsTab:AddSection("UI Settings")
+
+-- Add toggles for UI settings
+UISettings:AddToggle({
+    Text = "Show Keybind List",
+    Default = true,
+    Callback = function(value)
+        -- Toggle keybind list visibility
+        ModernUI:Notify("Keybind List", value and "Shown" or "Hidden", 2)
+    end
+})
+
+UISettings:AddToggle({
+    Text = "Show Watermark",
+    Default = true,
+    Callback = function(value)
+        -- Toggle watermark visibility
+        ModernUI:Notify("Watermark", value and "Shown" or "Hidden", 2)
+    end
+})
+
+UISettings:AddButton({
+    Text = "Reset All Settings",
+    Callback = function()
+        ModernUI:Notify("Settings Reset", "All settings have been reset to default", 3)
+        -- Reset all settings
+    end
+})
+
+-- Show a welcome notification
+ModernUI:Notify("Modern UI Loaded", "Welcome to the enhanced UI experience!", 3)
